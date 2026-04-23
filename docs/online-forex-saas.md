@@ -9,9 +9,9 @@
 
 ## Required Environment Variables
 - `REDIS_URL`
-- `FXCM_LOGIN`
-- `FXCM_PASSWORD`
-- `FXCM_HOST_URL` (optional, default in code)
+- `FXCM_ACCOUNT_ID`
+- `FXCM_API_TOKEN`
+- `FXCM_ENV` (`demo` or `live`)
 - `WORKER_ACCOUNT_ID`
 - `WORKER_STRATEGY`
 - `WORKER_INTERVAL_SEC`

@@ -5,7 +5,7 @@ from typing import Any, Dict
 
 from core.broker_adapter import BrokerCredentials
 from core.database_client import db_client
-from core.forexconnect_adapter import ForexConnectAdapter
+from core.fxcm_adapter import FxcmAdapter
 from core.mt5_adapter import MT5Adapter
 from core.oanda_adapter import OandaAdapter
 
@@ -13,8 +13,8 @@ from core.oanda_adapter import OandaAdapter
 def _from_env_fxcm() -> BrokerCredentials:
     return BrokerCredentials(
         provider="fxcm",
-        account_id=os.getenv("FXCM_LOGIN", ""),
-        api_key=os.getenv("FXCM_PASSWORD", ""),
+        account_id=os.getenv("FXCM_ACCOUNT_ID", "") or os.getenv("FXCM_LOGIN", ""),
+        api_key=os.getenv("FXCM_API_TOKEN", "") or os.getenv("FXCM_PASSWORD", ""),
         environment=os.getenv("FXCM_ENV", "demo"),
     )
 
@@ -34,13 +34,13 @@ def get_broker_for_account(account_id: str, mt5_manager):
     if provider == "fxcm":
         creds = BrokerCredentials(
             provider="fxcm",
-            account_id=record.get("broker_account_id") or os.getenv("FXCM_LOGIN", ""),
-            api_key=record.get("api_key_plain") or os.getenv("FXCM_PASSWORD", ""),
+            account_id=record.get("broker_account_id") or os.getenv("FXCM_ACCOUNT_ID", "") or os.getenv("FXCM_LOGIN", ""),
+            api_key=record.get("api_key_plain") or os.getenv("FXCM_API_TOKEN", "") or os.getenv("FXCM_PASSWORD", ""),
             environment=record.get("environment") or os.getenv("FXCM_ENV", "demo"),
         )
         if not creds.account_id or not creds.api_key:
             creds = _from_env_fxcm()
-        return ForexConnectAdapter(creds)
+        return FxcmAdapter(creds)
     if provider == "oanda":
         creds = BrokerCredentials(
             provider="oanda",

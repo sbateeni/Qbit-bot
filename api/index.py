@@ -158,8 +158,8 @@ def ping_broker(account_id: str, user: Dict[str, Any] = Depends(get_current_user
     broker = get_broker_for_account(account_id, mt5_manager)
     account = broker.get_account()
     if not account or account.get("error"):
-        return {"ok": False, "provider": "fxcm-forexconnect", "account_id": account_id, "details": account}
-    return {"ok": True, "provider": "fxcm-forexconnect", "account_id": account_id, "details": account}
+        return {"ok": False, "provider": "fxcm-rest", "account_id": account_id, "details": account}
+    return {"ok": True, "provider": "fxcm-rest", "account_id": account_id, "details": account}
 
 
 @app.post("/api/v2/risk/limits")

@@ -49,8 +49,8 @@ const writeBrowserCreds = async (id, payload) => {
 const BrokerControlPanel = ({ session, activeAccount }) => {
   const [provider, setProvider] = useState("fxcm");
   const [environment, setEnvironment] = useState("demo");
-  const [brokerLogin, setBrokerLogin] = useState("");
-  const [brokerPassword, setBrokerPassword] = useState("");
+  const [brokerAccountId, setBrokerAccountId] = useState("");
+  const [brokerApiToken, setBrokerApiToken] = useState("");
   const [status, setStatus] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isPinging, setIsPinging] = useState(false);
@@ -84,7 +84,7 @@ const BrokerControlPanel = ({ session, activeAccount }) => {
 
   const saveBroker = async () => {
     if (!accountId) return setStatus("اختر حساب المشترك أولاً");
-    if (!brokerLogin || !brokerPassword) return setStatus("أدخل Login و Password الخاصين بـ FXCM");
+    if (!brokerAccountId || !brokerApiToken) return setStatus("أدخل Account ID و API Token الخاصين بـ FXCM");
     setIsSaving(true);
     try {
       const res = await withTimeout(`${API_URL}/v2/broker/connection`, {
@@ -93,8 +93,8 @@ const BrokerControlPanel = ({ session, activeAccount }) => {
         body: JSON.stringify({
           account_id: accountId,
           provider,
-          broker_account_id: brokerLogin,
-          api_key: brokerPassword,
+          broker_account_id: brokerAccountId,
+          api_key: brokerApiToken,
           environment,
         }),
       });
@@ -156,8 +156,8 @@ const BrokerControlPanel = ({ session, activeAccount }) => {
     readBrowserCreds(browserCredKey)
       .then((saved) => {
         if (cancelled || !saved) return;
-        setBrokerLogin(saved.brokerLogin || "");
-        setBrokerPassword(saved.brokerPassword || "");
+        setBrokerAccountId(saved.brokerAccountId || "");
+        setBrokerApiToken(saved.brokerApiToken || "");
       })
       .catch(() => {})
       .finally(() => {
@@ -170,8 +170,8 @@ const BrokerControlPanel = ({ session, activeAccount }) => {
 
   useEffect(() => {
     if (!credsLoaded) return;
-    writeBrowserCreds(browserCredKey, { brokerLogin, brokerPassword }).catch(() => {});
-  }, [browserCredKey, brokerLogin, brokerPassword, credsLoaded]);
+    writeBrowserCreds(browserCredKey, { brokerAccountId, brokerApiToken }).catch(() => {});
+  }, [browserCredKey, brokerAccountId, brokerApiToken, credsLoaded]);
 
   return (
     <div className="bg-slate-900/50 border border-white/10 rounded-3xl p-6 space-y-5">
@@ -188,33 +188,33 @@ const BrokerControlPanel = ({ session, activeAccount }) => {
           </select>
           <input
             className="bg-slate-950 border border-white/10 rounded-xl p-3 text-white"
-            value={brokerLogin}
-            onChange={e => setBrokerLogin(e.target.value)}
-            placeholder="FXCM Login (مثل D161663900)"
+            value={brokerAccountId}
+            onChange={e => setBrokerAccountId(e.target.value)}
+            placeholder="FXCM Account ID (مثل 12345678)"
             tabIndex={1}
             autoComplete="off"
             autoCorrect="off"
             autoCapitalize="none"
             spellCheck={false}
-            name="fxcm-login-manual"
+            name="fxcm-account-id-manual"
           />
           <input
             type="password"
             className="bg-slate-950 border border-white/10 rounded-xl p-3 text-white"
-            value={brokerPassword}
-            onChange={e => setBrokerPassword(e.target.value)}
-            placeholder="FXCM Password"
+            value={brokerApiToken}
+            onChange={e => setBrokerApiToken(e.target.value)}
+            placeholder="FXCM API Token"
             tabIndex={2}
             autoComplete="new-password"
             autoCorrect="off"
             autoCapitalize="none"
             spellCheck={false}
-            name="fxcm-password-manual"
+            name="fxcm-api-token-manual"
           />
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <span className="px-2 py-1 rounded-lg bg-amber-500/10 border border-amber-400/30 text-amber-300 font-bold">
-            نستخدم ForexConnect: أدخل Login و Password بدل API Token
+            نستخدم FXCM REST API: أدخل Account ID + API Token
           </span>
           <a
             href="https://www.fxcm.com/markets/platforms/trading-station/"
