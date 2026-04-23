@@ -157,36 +157,20 @@ class SwingInvestor:
         if 45 < rsi < 55:
             return
 
-        # 4. Fetch/Update Market Intel (ON-DEMAND)
+        # 4. Fetch Market Intel (REUSE GLOBAL CACHE)
         intel = self.get_market_intel()
-        
-        # Check if intel is missing or older than 30 minutes
-        needs_update = True
-        now = __import__('datetime').datetime.now()
-        
-        if intel and "last_update" in intel:
-            last_upd = __import__('datetime').datetime.strptime(intel["last_update"], "%Y-%m-%d %H:%M")
-            if (now - last_upd).total_seconds() < 1800:
-                needs_update = False
-        
-        # 🧨 SAFETY FUSE: Don't spam if we just recently tried and failed (avoid 429)
-        if needs_update:
-            if hasattr(self, '_last_intel_retry'):
-                if (now - self._last_intel_retry).total_seconds() < 300: # Wait 5m between retries if failing
-                    return
-            
-            logger.info(f"🧠 [SWING] {self.symbol} requesting fresh AI Intel...")
-            self._last_intel_retry = now
-            from core.intel_manager import IntelManager
-            intel_mgr = IntelManager(self.mt)
-            updated_list = intel_mgr.update_global_intelligence([self.symbol])
-            if updated_list: 
-                intel = updated_list[0]
-            else: 
-                return # AI still throttled or no data
-
         if not intel:
             return
+        
+        # Check if intel is stale (older than 45 minutes)
+        now = datetime.datetime.now()
+        if "last_update" in intel:
+            try:
+                last_upd = datetime.datetime.strptime(intel["last_update"], "%Y-%m-%d %H:%M")
+                if (now - last_upd).total_seconds() > 2700: # 45 minutes
+                    logger.debug(f"⚠️ [SWING] {self.symbol} intel is stale. Waiting for engine sync...")
+                    return 
+            except Exception: pass
 
         confidence = int(intel.get("sentiment_score", 50))
         summary    = intel.get("technical_summary", "")

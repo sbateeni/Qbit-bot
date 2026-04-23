@@ -66,6 +66,5 @@ system_snapshot.json
 Thumbs.db
 desktop.ini
 
-.env.vercel
+# cloud deployment leftovers
 .render/
-render.yaml.local

@@ -12,6 +12,8 @@
     "hourly_panic_loss_usd": 80.0,
     "hourly_panic_bot_deals_only": true,
     "hourly_panic_include_commission": true,
-    "hourly_panic_magics": [123456]
+    "hourly_panic_magics": [
+      123456
+    ]
   }
 }

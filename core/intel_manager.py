@@ -13,7 +13,6 @@ from core.mt5_matrix_fallback import (
     sentiment_from_matrix,
     technical_summary_from_matrix,
 )
-from core.database_client import db_client
 
 logger = logging.getLogger("IntelManager")
 
@@ -33,7 +32,8 @@ def _tv_get_analysis_with_retry(handler, attempts: int = 3):
 
 class IntelManager:
     _shared_cache = {} # Shared across all strategy instances
-    _shared_expiry = 900 # 15 minutes
+    _shared_expiry = 600 # 10 minutes to minimize 429 errors
+    _global_cooldown_until = 0 # Prevent any TV requests if we hit 429
     
     def __init__(self, mt5_mgr):
         self.mt = mt5_mgr
@@ -68,13 +68,19 @@ class IntelManager:
                 logger.debug(f"💎 Using cached Institutional Matrix for {sym}")
                 return last_matrix
 
+        # 0. Check Global Cooldown
+        if time.time() < self._global_cooldown_until:
+            logger.warning(f"🕒 TradingView in cooldown due to previous 429. Skipping matrix for {sym}")
+            return None
+
         matrix = {}
         try:
             for label, interval in intervals.items():
                 if self.stop_event.is_set(): break
                 
                 # ⚔️ Institutional Staggered Throttle (v4.5) - Increased for Rate Limit Safety
-                time.sleep(5.0) 
+                # We wait 6-8 seconds between each timeframe request
+                time.sleep(7.0) 
                 
                 # Internal Mapping for TV (Broker GOLD -> TV XAUUSD)
                 tv_sym = sym.replace("/", "")
@@ -87,33 +93,51 @@ class IntelManager:
                     interval=interval,
                     timeout=12,
                 )
-                analysis = _tv_get_analysis_with_retry(handler, attempts=3)
+                try:
+                    analysis = _tv_get_analysis_with_retry(handler, attempts=2)
+                except Exception as e:
+                    if "429" in str(e):
+                        logger.critical(f"🚫 RATE LIMIT HIT (429) for {sym}. Triggering 15-minute global cooldown.")
+                        IntelManager._global_cooldown_until = time.time() + 900 # 15 min
+                        return None
+                    raise e
+
+                # ⚔️ NaN Safety Guard (v4.5)
+                import math
+                
+                def safe_float(val, default=0.0):
+                    if val is None: return default
+                    try:
+                        f = float(val)
+                        return default if math.isnan(f) or math.isinf(f) else f
+                    except: return default
+
                 matrix[label] = {
                     "summary": analysis.summary['RECOMMENDATION'].replace("_", " "),
                     "ma": analysis.moving_averages['RECOMMENDATION'].replace("_", " "),
                     "osc": analysis.oscillators['RECOMMENDATION'].replace("_", " "),
                     "counts": {
-                        "buy": analysis.summary['BUY'],
-                        "sell": analysis.summary['SELL'],
-                        "neutral": analysis.summary['NEUTRAL']
+                        "buy": int(analysis.summary.get('BUY', 0)),
+                        "sell": int(analysis.summary.get('SELL', 0)),
+                        "neutral": int(analysis.summary.get('NEUTRAL', 0))
                     },
                     "indicators": {
-                        "rsi": round(analysis.indicators.get("RSI", 50), 2),
-                        "adx": round(analysis.indicators.get("ADX", 20), 2),
-                        "atr": round(analysis.indicators.get("ATR", 0), 5)
+                        "rsi": round(safe_float(analysis.indicators.get("RSI"), 50), 2),
+                        "adx": round(safe_float(analysis.indicators.get("ADX"), 20), 2),
+                        "atr": round(safe_float(analysis.indicators.get("ATR"), 0), 6)
                     },
                     "pivots": {
                         "classic": {
-                            "pivot": round(analysis.indicators.get("Pivot.M.Classic.Middle", 0), 5),
-                            "s1": round(analysis.indicators.get("Pivot.M.Classic.S1", 0), 5),
-                            "r1": round(analysis.indicators.get("Pivot.M.Classic.R1", 0), 5),
-                            "s2": round(analysis.indicators.get("Pivot.M.Classic.S2", 0), 5),
-                            "r2": round(analysis.indicators.get("Pivot.M.Classic.R2", 0), 5)
+                            "pivot": round(safe_float(analysis.indicators.get("Pivot.M.Classic.Middle")), 5),
+                            "s1": round(safe_float(analysis.indicators.get("Pivot.M.Classic.S1")), 5),
+                            "r1": round(safe_float(analysis.indicators.get("Pivot.M.Classic.R1")), 5),
+                            "s2": round(safe_float(analysis.indicators.get("Pivot.M.Classic.S2")), 5),
+                            "r2": round(safe_float(analysis.indicators.get("Pivot.M.Classic.R2")), 5)
                         },
                         "fibonacci": {
-                            "pivot": round(analysis.indicators.get("Pivot.M.Fibonacci.Middle", 0), 5),
-                            "s1": round(analysis.indicators.get("Pivot.M.Fibonacci.S1", 0), 5),
-                            "r1": round(analysis.indicators.get("Pivot.M.Fibonacci.R1", 0), 5)
+                            "pivot": round(safe_float(analysis.indicators.get("Pivot.M.Fibonacci.Middle")), 5),
+                            "s1": round(safe_float(analysis.indicators.get("Pivot.M.Fibonacci.S1")), 5),
+                            "r1": round(safe_float(analysis.indicators.get("Pivot.M.Fibonacci.R1")), 5)
                         }
                     },
                     "patterns": self.detect_candle_patterns(analysis.indicators)
@@ -123,7 +147,11 @@ class IntelManager:
             self._shared_cache[cache_key] = (now, matrix)
             return matrix
         except Exception as e:
-            logger.error(f"Failed to generate matrix for {sym}: {e}")
+            if "429" in str(e):
+                logger.critical(f"🚫 RATE LIMIT HIT (429) during matrix loop. Cooldown activated.")
+                IntelManager._global_cooldown_until = time.time() + 900
+            else:
+                logger.error(f"Failed to generate matrix for {sym}: {e}")
             return None
 
     def detect_candle_patterns(self, ind):
@@ -148,8 +176,8 @@ class IntelManager:
 
     def _get_yf_data(self, sym):
         """Fetches secondary market data from Yahoo Finance for confirmation."""
+        import math
         try:
-            # Map Forex symbols from MT5 to Yahoo format (EURUSD -> EURUSD=X)
             yf_sym = sym.replace("/", "") + "=X"
             if "XAU" in sym.upper() or sym.upper() == "GOLD": 
                 yf_sym = "GC=F" # Gold Futures as proxy
@@ -157,11 +185,20 @@ class IntelManager:
             ticker = yf.Ticker(yf_sym)
             info = ticker.fast_info
             
+            price = float(info.last_price)
+            if math.isnan(price): return None
+            
+            prev_close = float(info.previous_close) if info.previous_close else 0
+            change_pct = 0.0
+            if prev_close > 0:
+                change_pct = ((price - prev_close) / prev_close) * 100
+                if math.isnan(change_pct): change_pct = 0.0
+            
             return {
-                "price": info.last_price,
-                "change_pct": ((info.last_price - info.previous_close) / info.previous_close) * 100 if info.previous_close else 0,
-                "high": info.day_high,
-                "low": info.day_low
+                "price": round(price, 5),
+                "change_pct": round(change_pct, 2),
+                "high": round(float(info.day_high), 5) if not math.isnan(float(info.day_high)) else price,
+                "low": round(float(info.day_low), 5) if not math.isnan(float(info.day_low)) else price
             }
         except Exception as e:
             logger.debug(f"Yahoo Finance fetch failed for {sym}: {e}")
@@ -258,6 +295,9 @@ class IntelManager:
         from api.state import global_biases
 
         for sym in symbols:
+            import MetaTrader5 as mt5
+            mt5.symbol_select(sym, True)
+            # 🏛️ Multi-Timeframe Institutional Intelligence
             if self.stop_event.is_set():
                 logger.info("🛑 [INTEL] Shutdown detected. Aborting refresh.")
                 break
@@ -359,9 +399,6 @@ class IntelManager:
             with open(self.intel_path, "w", encoding='utf-8') as f:
                 json.dump(full_intel, f, indent=4, ensure_ascii=False)
             
-            # 2. Cloud Sync (Supabase)
-            db_client.save_market_intelligence(full_intel)
-            
             logger.info(f"💾 Market Intelligence Saved & Synced: {len(full_intel)} signals processed.")
         
         return full_intel
@@ -369,12 +406,27 @@ class IntelManager:
     def _calculate_pivots(self, sym):
         """Calculates Classic and Fibonacci Pivot Points based on Yesterday's D1 candle."""
         import MetaTrader5 as mt5
+        import math
+        
+        # Ensure symbol is active for data
+        if not mt5.symbol_select(sym, True):
+            return None
+            
+        # Force sync of D1 history
         rates = mt5.copy_rates_from_pos(sym, mt5.TIMEFRAME_D1, 1, 1)
         if rates is None or len(rates) == 0:
-            return None
+            # Secondary attempt with a small wait/refresh
+            mt5.copy_rates_from_pos(sym, mt5.TIMEFRAME_M1, 0, 1) # Poke the server
+            rates = mt5.copy_rates_from_pos(sym, mt5.TIMEFRAME_D1, 1, 1)
+            if rates is None or len(rates) == 0:
+                return None
         
         last_d1 = rates[0]
-        h, l, c = last_d1['high'], last_d1['low'], last_d1['close']
+        h, l, c = float(last_d1['high']), float(last_d1['low']), float(last_d1['close'])
+        
+        if math.isnan(h) or math.isnan(l) or math.isnan(c) or (h == l == c == 0):
+            return None
+
         pivot = (h + l + c) / 3
         
         # Classic Levels

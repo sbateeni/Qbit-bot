@@ -8,16 +8,11 @@ import SniperDashboard from './pages/SniperDashboard';
 import AnalyticsDashboard from './pages/AnalyticsDashboard';
 import SystemAudit from './pages/SystemAudit';
 import { useLanguage } from './components/LanguageContext';
-import LoginPage from './pages/LoginPage';
 import { API_URL } from './utils/apiBase';
 
 const authEnabled = false;
 
 function App() {
-  const [user, setUser] = useState(null);
-  const [session, setSession] = useState(null);
-  const [accounts, setAccounts] = useState([]);
-  const [activeAccount, setActiveAccount] = useState(null);
   const [account, setAccount] = useState({ balance: 0, equity: 0, currency: 'USD' });
   const [positions, setPositions] = useState([]);
   const [insight, setInsight] = useState({ message: "Loading...", ai_count: 0, last_update: "—", params: {} });
@@ -42,7 +37,7 @@ function App() {
 
   useEffect(() => {
     // MT5 session first: if broker has no fresh quotes / terminal off, show stopped (rose) in header
-    if (market.mt5_market_open === false) {
+    if (!market || market.mt5_market_open === false) {
       setCountdown({
         label: t("mt5_market_stopped"),
         time: market.status || t("mt5_no_quotes"),
@@ -60,7 +55,7 @@ function App() {
       });
       return;
     }
-    if (market.status && String(market.status).includes("Live")) {
+    if (market && market.status && String(market.status).includes("Live")) {
       const label = market.trading_mode === "⚔️ TRADING" ? t("trading_mode") : t("observation_mode");
       setCountdown({
         label,
@@ -68,7 +63,7 @@ function App() {
         isOpen: market.trading_mode === "⚔️ TRADING",
         modeType: market.trading_mode,
       });
-    } else if (market.next_open) {
+    } else if (market && market.next_open) {
       setCountdown({ label: t("opens_in"), time: market.next_open, isOpen: false, modeType: "CLOSED" });
     } else {
       setCountdown({ label: t("standby_label"), time: t("closed"), isOpen: false, modeType: "CLOSED" });
@@ -102,24 +97,10 @@ function App() {
   };
 
   useEffect(() => {
-    setUser({ id: "local-user", email: "local@qbit" });
-    setSession({ access_token: "local-dev-token" });
-  }, []);
-
-  useEffect(() => {
-    if (!user) return;
-    
-    // Fetch user accounts from Supabase
-    const fetchAccounts = async () => {
-        setAccounts([{ id: "default", name: "Local Account" }]);
-        if (!activeAccount) setActiveAccount({ id: "default", name: "Local Account" });
-    };
-    
-    fetchAccounts();
     fetchData();
     const interval = setInterval(fetchData, 3000);
     return () => clearInterval(interval);
-  }, [period, user, activeAccount]);
+  }, [period]);
 
   const apiCall = async (url, method = "POST", body = null) => {
     try {
@@ -137,9 +118,6 @@ function App() {
   const toggleMode = () => apiCall(`mode/${mode === "standard" ? "aggressive" : "standard"}`).then(ok => ok && setMode(mode === "standard" ? "aggressive" : "standard"));
   const closePosition = (ticket) => apiCall(`positions/close/${ticket}`).then(ok => ok && fetchData());
   const handlePanic = () => confirm("⚠️ CLOSE ALL TRADES?") && apiCall("panic").then(ok => ok && fetchData());
-  const handleLogout = async () => {
-    setUser(null);
-  };
 
   const copyHistory = () => {
     const text = "Time | Symbol | Profit (USD)\n" + (history.trades || []).map(t => `${t.time} | ${t.symbol} | ${t.profit >= 0 ? '+' : ''}${t.profit.toFixed(2)}`).join('\n');
@@ -147,9 +125,6 @@ function App() {
     alert("Copied!");
   };
 
-  if (!user) {
-    return <LoginPage onLogin={setUser} authEnabled={authEnabled} />;
-  }
 
   return (
     <BrowserRouter>
@@ -216,8 +191,6 @@ function App() {
                 terminalLogs={terminalLogs} history={history} period={period}
                 setPeriod={setPeriod} copyHistory={copyHistory} market={market}
                 prices={prices} prevPrices={prevPrices} aiFeed={aiFeed}
-                activeAccount={activeAccount}
-                session={session}
               />
             } />
 

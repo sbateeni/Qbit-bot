@@ -580,3 +580,23 @@ class MT5Manager:
             logger.info(f"🛑 Max open trades reached ({max_trades}). Skipping new signal.")
             return True
         return False
+
+    def account_info(self):
+        """Safe wrapper for mt5.account_info."""
+        self.keep_alive()
+        return mt5.account_info()
+
+    def terminal_info(self):
+        """Safe wrapper for mt5.terminal_info."""
+        self.keep_alive()
+        return mt5.terminal_info()
+
+    def symbol_info(self, symbol):
+        """Safe wrapper for mt5.symbol_info."""
+        self.keep_alive()
+        return mt5.symbol_info(symbol)
+
+    def symbol_info_tick(self, symbol):
+        """Safe wrapper for mt5.symbol_info_tick."""
+        self.keep_alive()
+        return mt5.symbol_info_tick(symbol)

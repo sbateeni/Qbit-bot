@@ -26,20 +26,25 @@ class AuditAnalyst:
             
         self.client = genai.Client(api_key=self.api_key)
         # Targeted confirm model for Sovereign v4.5
-        self.model_tiers = ['gemini-2.5-flash']
+        # Targeted confirm model for Sovereign v4.5 with fallbacks
+        self.model_tiers = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro']
         self.default_account_id = os.getenv("DEFAULT_ACCOUNT_ID", "00000000-0000-0000-0000-000000000000")
         
-    def perform_audit(self, account_id=None, auto_apply=True):
-        """Redesigned feedback loop: Read Supabase Journal -> Extract Patterns -> Suggest/Apply Tweaks."""
+    def perform_audit(self, auto_apply=True):
+        """Redesigned feedback loop: Read Local Journal -> Extract Patterns -> Suggest/Apply Tweaks."""
         if not self.client:
             return False
             
-        acc_id = account_id or self.default_account_id
-
         try:
-            # 1. Load Data from Supabase
-            journal_data = db_client.get_recent_journal(acc_id, limit=60)
-            snapshot_data = {} # To be expanded to fetch from DB snapshots
+            # 1. Load Data from Local Journal
+            journal_path = "logs/trade_journal.json"
+            if not os.path.exists(journal_path):
+                return False
+                
+            with open(journal_path, "r") as f:
+                journal_data = json.load(f)[-60:]
+            
+            snapshot_data = {} 
 
             if not journal_data:
                 logger.debug("Audit checked: Not enough journal data yet.")
@@ -102,27 +107,32 @@ class AuditAnalyst:
             notes["last_audit"] = __import__('datetime').datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             notes["ai_model"] = model_id
             
-            # Save Insights to Supabase
-            db_client.save_ai_notes(acc_id, notes)
+            # Save Insights to Local File
+            with open("logs/ai_optimization_notes.json", "w") as f:
+                json.dump(notes, f, indent=4)
                 
             if auto_apply:
-                self.apply_tweaks(acc_id, notes.get("suggested_tweaks", {}))
+                self.apply_tweaks(notes.get("suggested_tweaks", {}))
                 
-            logger.info(f"✅ Sovereign Cloud Audit Complete for {acc_id}. Health Score: {notes.get('overall_health_score')}%")
+            logger.info(f"✅ Sovereign Local Audit Complete. Health Score: {notes.get('overall_health_score')}%")
             return True
         except Exception as e:
             logger.error(f"💥 Sovereign Audit failed: {e}")
             return False
 
-    def apply_tweaks(self, account_id, tweaks):
-        """Surgically applies AI-suggested tweaks to Cloud Config with safety bounds."""
+    def apply_tweaks(self, tweaks):
+        """Surgically applies AI-suggested tweaks to Local Config with safety bounds."""
         if not tweaks: return
         
         try:
-            # Fetch current config from DB
-            cfg = db_client.get_account_config(account_id)
+            # Fetch current config from local file
+            cfg_path = "config_scalper.json"
+            cfg = {}
+            if os.path.exists(cfg_path):
+                with open(cfg_path, "r") as f:
+                    cfg = json.load(f)
+            
             if not cfg: 
-                # Create default config if missing
                 cfg = {"rsi_oversold": 30, "rsi_overbought": 70, "sl_points": 150, "tp_points": 300}
             
             # Validation & Boundary Logic (Institutional Safety)
@@ -144,8 +154,9 @@ class AuditAnalyst:
                         applied[key] = safe_val
             
             if applied:
-                db_client.update_account_config(account_id, applied)
-                logger.info(f"🛡️ Sovereign Cloud Auto-Tuning Applied to {account_id}: {applied}")
+                with open(cfg_path, "w") as f:
+                    json.dump(cfg, f, indent=4)
+                logger.info(f"🛡️ Sovereign Local Auto-Tuning Applied: {applied}")
                 
         except Exception as e:
             logger.error(f"Failed to apply auto-tuning: {e}")

@@ -41,12 +41,9 @@ def run_scalper_loop():
     
     symbols = ["EURUSD", "GBPUSD", "USDJPY", "GOLD", "USDCAD", "AUDUSD", "USDCHF", "NZDUSD"]
     
-    # Institutional SaaS Context
-    account_id = os.getenv("DEFAULT_ACCOUNT_ID", "00000000-0000-0000-0000-000000000000")
-    
-    # Initialize scalper for each symbol with account context
+    # Initialize scalper for each symbol
     for sym in symbols:
-        state.scalpers[sym] = SmartScalper(state.mt5_mgr, sym, mt5.TIMEFRAME_M5, volume=0.1, account_id=account_id)
+        state.scalpers[sym] = SmartScalper(state.mt5_mgr, sym, mt5.TIMEFRAME_M5, volume=0.1)
         
     # Initialize Swing Investor & Sniper Engine for each symbol
     for sym in symbols:
@@ -73,12 +70,10 @@ def run_scalper_loop():
         state.iteration += 1
         
         # 🧠 PHASE 1: Autonomous Audit (Time-Based to save Gemini Quota)
-        # Runs every 1 hour (3600s) OR on the very first iteration
         now = time.time()
         if (now - last_audit_run > 3600) or (state.iteration == 1):
-            logger.info(f"🤖 [SOVEREIGN CLOUD AUDIT] Starting feedback loop for {account_id[:8]}...")
-            # Run with auto_apply=True and account_id
-            threading.Thread(target=analyst.perform_audit, kwargs={"account_id": account_id, "auto_apply": True}, daemon=True).start()
+            logger.info("🤖 [SYSTEM AUDIT] Starting feedback loop...")
+            threading.Thread(target=analyst.perform_audit, kwargs={"auto_apply": True}, daemon=True).start()
             last_audit_run = now
             
         limits = _engine_risk_limits(state.iteration)
@@ -157,7 +152,7 @@ def run_scalper_loop():
                 intel_list = []
 
         # Create a ranking map
-        ranking = {item['pair'].replace("/", "").upper(): item['sentiment_score'] for item in intel_list}
+        ranking = {str(item.get('pair', '')).replace("/", "").upper(): item.get('sentiment_score', 50) for item in intel_list}
         
         # Sort swing_investors keys by ranking (descending)
         sorted_swing_keys = sorted(
@@ -167,18 +162,17 @@ def run_scalper_loop():
         )
 
         for sym in sorted_swing_keys:
-            bot = state.swing_investors[sym]
+            swing = state.swing_investors[sym]
             if not mt5.symbol_select(sym, True): continue
             
             # Regime Gate: Swing only fires in TRENDING markets
-            regime = regime_detector.get_cached(sym)  # Already computed above
-            if regime["regime"] == "CHOPPY":
+            regime = regime_detector.get_cached(sym)
+            if regime["regime"] == "CHOPPY" or regime["regime"] == "RANGING":
+                # Monitor existing positions even if not entering new ones
+                swing.monitor_and_close_positions(swing.load_swing_config())
                 continue
-            if regime["regime"] == "RANGING":
-                continue  # Scalper's turn in ranging markets
             
-            # 2. Run Swing Investor (Macro Strategy)
-        for sym, swing in state.swing_investors.items():
+            # Sovereign v4.5 Execution
             swing.analyze_and_invest()
             swing.monitor_and_close_positions(swing.load_swing_config())
 
@@ -212,20 +206,26 @@ def run_scalper_loop():
                 logger.error(f"❌ Failed to trigger auto-optimizer: {e}")
                 SnapshotManager.capture_full_state() # Capture state for debugging failure
 
-        # 5. Macro Sentinel Awareness & Global Intelligence Update
+        # 5. Macro Sentinel Awareness
         now = time.time()
+
+        # Update Intelligence every 10 minutes (600 seconds) to avoid 429 Too Many Requests
+        if now - last_intel_update > 600:
+            try:
+                logger.info("📡 [INTEL] Refreshing Global Intelligence (10-minute cycle)...")
+                res = intel_mgr.update_global_intelligence(symbols)
+                if res: # Only update time if we actually got something
+                    last_intel_update = now
+                else:
+                    logger.warning("⚠️ [INTEL] Global refresh failed or was throttled. Will retry next iteration.")
+                    # We wait at least 60 seconds before retrying to respect the scraper
+                    last_intel_update = now - 540 
+            except Exception as e:
+                logger.error(f"Failed to update global intelligence: {e}")
 
         if now - state.macro_data["last_macro_update"] > 30:
             update_macro_sentinel()
             state.macro_data["last_macro_update"] = now
-            
-        # v4.5 Sovereign: Periodic Global Intel Refresh (Every 15 minutes)
-        if now - last_intel_update > 900 and not state.stop_event.is_set(): 
-            logger.info("📡 [ENGINE] Triggering Scheduled Global Intelligence Refresh for all symbols...")
-            # Run in a separate thread to avoid blocking the main trading loop
-            threading.Thread(target=intel_mgr.update_global_intelligence, args=(symbols,), daemon=True).start()
-            last_intel_update = now
-        
         # 9. Sync & Audit (v4.5) — Ensures Telegram is always accurate
         state.mt5_mgr.audit_notifications()
         

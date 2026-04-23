@@ -226,7 +226,7 @@ class SnapshotManager:
         try:
             from api.state import log_buffer
 
-            buf = list(log_buffer)[-20]
+            buf = list(log_buffer)[-20:]
             lines.extend([f"[{b['time']}] {b['level']}: {b['msg']}\n" for b in buf])
         except Exception:
             pass

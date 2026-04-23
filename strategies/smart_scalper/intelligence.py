@@ -50,9 +50,10 @@ class ScalperIntelligence:
         """
         
         try:
-            res = self.brain.client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+            res = self.brain.generate_content(prompt)
             verdict = res.text.upper() if res else "YES"
             self.last_gemini_time = now
             return "YES" in verdict
-        except:
+        except Exception as e:
+            logger.warning(f"Scalper verdict failed: {e}")
             return True # Fallback to technicals

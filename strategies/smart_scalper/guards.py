@@ -52,11 +52,13 @@ class TradingGuards:
             if int(info.trade_mode) == int(mt5.SYMBOL_TRADE_MODE_CLOSEONLY):
                 continue
             tick = mt5.symbol_info_tick(sym)
-            if tick is None:
-                continue
-            age = time.time() - float(tick.time)
-            if age > TradingGuards._max_tick_age_sec():
-                logger.debug("MT5 session: stale tick %.0fs on %s", age, sym)
+            if tick is None: continue
+            
+            # v5.0: Account for TZ offsets. If connected, we just need to see a tick existing.
+            # We allow a wide window for the initial connection, as long as quotes aren't dead.
+            age = abs(time.time() - float(tick.time))
+            if age > 43200: # 12 hours — basically just checking if the symbol has ANY recent-ish data
+                logger.debug("MT5 session: extreme stale tick %.0fs on %s", age, sym)
                 continue
             return True
 

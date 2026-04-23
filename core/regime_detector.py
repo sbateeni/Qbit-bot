@@ -1,4 +1,5 @@
 import logging
+import math
 import MetaTrader5 as mt5
 import pandas as pd
 import pandas_ta as ta
@@ -51,12 +52,18 @@ class RegimeDetector:
             return {"regime": "UNKNOWN", "adx": 0, "atr": 0}
 
         adx_val = float(adx_data[adx_col[0]].iloc[-1])
+        if math.isnan(adx_val): adx_val = 0.0
+        
         dmp_val = float(adx_data[dmp_col[0]].iloc[-1]) if dmp_col else 0
+        if math.isnan(dmp_val): dmp_val = 0.0
+        
         dmn_val = float(adx_data[dmn_col[0]].iloc[-1]) if dmn_col else 0
+        if math.isnan(dmn_val): dmn_val = 0.0
 
         # --- Calculate ATR (Volatility gauge) ---
         atr_series = ta.atr(df['high'], df['low'], df['close'], length=14)
-        atr_val = float(atr_series.iloc[-1]) if atr_series is not None else 0.0
+        atr_val = float(atr_series.iloc[-1]) if (atr_series is not None and not atr_series.empty) else 0.0
+        if math.isnan(atr_val): atr_val = 0.0
 
         # --- Classify Regime ---
         if adx_val < CHOPPY_THRESHOLD:
@@ -92,8 +99,7 @@ class RegimeDetector:
 
     def get_strategic_bias(self, symbol: str) -> str:
         """
-        Analyzes H4 timeframe to determine 'The General' direction.
-        Returns: 'BULLISH', 'BEARISH', or 'NEUTRAL'
+        Determines the 'General' direction from H4 timeframe.
         """
         if not mt5.symbol_select(symbol, True):
             return "NEUTRAL"
@@ -102,30 +108,39 @@ class RegimeDetector:
         if df is None or df.empty or len(df) < 50:
             return "NEUTRAL"
 
-        ema = ta.ema(df['close'], length=50) # Strategic EMA
+        ema = ta.ema(df['close'], length=50)
         if ema is None or len(ema) < 2: return "NEUTRAL"
         
         current_ema = float(ema.iloc[-1])
         prev_ema = float(ema.iloc[-2])
         price = float(df['close'].iloc[-1])
 
+        if math.isnan(current_ema) or math.isnan(prev_ema):
+            return "NEUTRAL"
+
         # Bias logic: Price relative to EMA + EMA direction
         if price > current_ema and current_ema > prev_ema:
             return "BULLISH"
         elif price < current_ema and current_ema < prev_ema:
             return "BEARISH"
+        return "NEUTRAL"
+
     def get_hyper_confluence(self, symbol: str) -> dict:
         """
-        Institutional Grade Confluence: Analyzes M15, H1, and H4.
-        Returns: { confluence: 'BUY'|'SELL'|'NEUTRAL', score: 0-100 }
+        Institutional Grade Confluence: M15, H1, H4.
         """
         try:
-            h4_bias = self.get_strategic_bias(symbol) # Trend (H4)
-            h1_regime = self.detect(symbol, mt5.TIMEFRAME_H1) # Momentum (H1)
+            h4_bias = self.get_strategic_bias(symbol)
+            h1_regime = self.detect(symbol, mt5.TIMEFRAME_H1)
             
             # M15 Quick Momentum
             df_m15 = self.mt.get_market_data(symbol, mt5.TIMEFRAME_M15, count=50)
-            rsi_m15 = ta.rsi(df_m15['close'], length=14).iloc[-1] if df_m15 is not None else 50
+            rsi_m15 = 50.0
+            if df_m15 is not None and not df_m15.empty:
+                rsi_series = ta.rsi(df_m15['close'], length=14)
+                if rsi_series is not None and not rsi_series.empty:
+                    rsi_m15 = float(rsi_series.iloc[-1])
+                    if math.isnan(rsi_m15): rsi_m15 = 50.0
             
             score = 0
             signal = "NEUTRAL"
@@ -150,7 +165,6 @@ class RegimeDetector:
         except Exception as e:
             logger.error(f"Error in hyper_confluence: {e}")
             return {"confluence": "NEUTRAL", "score": 0}
-
 
     def is_safe_to_trade(self, symbol: str) -> bool:
         """Returns False in CHOPPY/UNKNOWN markets — ALL engines should pause."""

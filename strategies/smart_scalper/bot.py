@@ -25,11 +25,10 @@ from brain.gemini_analyzer import GeminiAnalyzer
 logger = logging.getLogger("SmartScalper")
 
 class SmartScalper:
-    def __init__(self, mt5_manager, symbol, timeframe, volume=0.1, account_id=None):
+    def __init__(self, mt5_manager, symbol, timeframe, volume=0.1):
         self.mt = mt5_manager
         self.symbol = symbol
         self.timeframe = timeframe
-        self.account_id = account_id or os.getenv("DEFAULT_ACCOUNT_ID")
         self.base_volume = volume
         self.mode = "standard"
         self.last_ticket = None
@@ -65,13 +64,11 @@ class SmartScalper:
         except: pass
 
     def load_config(self):
-        """Pulls account-specific Sovereign tuning from the cloud (Supabase)."""
+        """Pulls tuning from local configuration."""
         try:
-            cfg = db_client.get_account_config(self.account_id)
-            if not cfg:
-                # Local Fallback
-                with open("config_scalper.json", "r") as f:
-                    cfg = json.load(f)
+            # Local config is the source of truth in non-SaaS mode
+            with open("config_scalper.json", "r") as f:
+                cfg = json.load(f)
             
             self.rsi_oversold = cfg.get("rsi_oversold", 30)
             self.rsi_overbought = cfg.get("rsi_overbought", 70)
@@ -83,10 +80,8 @@ class SmartScalper:
             self.adx_mr_block_level = float(cfg.get("adx_mr_block_level", 38))
             self.safety_stop_usd = float(cfg.get("safety_stop_usd", 5.0))
             self.exec_max_spread_atr_ratio = float(cfg.get("exec_max_spread_atr_ratio", 1.35))
-            self.atr_filter_enabled = bool(cfg.get("atr_filter_enabled", True))
-            self.atr_percentile_window = int(cfg.get("atr_percentile_window", 120))
-            self.atr_min_percentile = float(cfg.get("atr_min_percentile", 12.0))
             self.atr_max_percentile = float(cfg.get("atr_max_percentile", 92.0))
+            self.max_spread_pips = float(cfg.get("max_spread_pips", 10.0))
         except:
             self.rsi_oversold = 30
             self.rsi_overbought = 70
@@ -96,10 +91,8 @@ class SmartScalper:
             self.adx_mr_block_level = 38.0
             self.safety_stop_usd = 5.0
             self.exec_max_spread_atr_ratio = 1.35
-            self.atr_filter_enabled = True
-            self.atr_percentile_window = 120
-            self.atr_min_percentile = 12.0
             self.atr_max_percentile = 92.0
+            self.max_spread_pips = 10.0
 
     def analyze_and_trade(self):
         """Main execution loop for a specific symbol."""
@@ -109,8 +102,8 @@ class SmartScalper:
         if not allow_new_entry(self.symbol): return
         if self.session_filter_active and not TradingGuards.is_news_safe(self.symbol): return
         
-        # v4.5 Active Mode: Increased spread limit
-        spread_limit = 9.0 if self.session_filter_active else 20.0
+        # v4.5 Active Mode: Dynamic spread limit from config
+        spread_limit = self.max_spread_pips
         if not TradingGuards.is_spread_valid(self.mt, self.symbol, spread_limit): return
 
         # 2. Management & Learning
@@ -242,7 +235,7 @@ class SmartScalper:
             # v5.0 Meta-Logic: Block counter-trend mean reversion when trend strength is extreme
             if self.block_mean_reversion_high_adx and adx > self.adx_mr_block_level:
                 if reason in ("Dip Hunter", "Peak Hunter"):
-                    DecisionJournal.log(self.symbol, "Scalper", "BLOCK", f"High ADX ({adx:.1f}) blocked MR {action}", {"adx": adx, "rsi": rsi_14, "regime": regime}, account_id=self.account_id)
+                    DecisionJournal.log(self.symbol, "Scalper", "BLOCK", f"High ADX ({adx:.1f}) blocked MR {action}", {"adx": adx, "rsi": rsi_14, "regime": regime})
                     return
 
         if action:
@@ -254,11 +247,11 @@ class SmartScalper:
 
             if self.intel.ask_gemini_verdict(action, rsi_14, close_p):
                 if not ExecutionGuard.is_liquidity_safe(self.symbol, self.mt, max_spread_atr_ratio=self.exec_max_spread_atr_ratio):
-                    DecisionJournal.log(self.symbol, "Scalper", "SKIP", f"Spread unsafe for {action}", matrix_data, account_id=self.account_id)
+                    DecisionJournal.log(self.symbol, "Scalper", "SKIP", f"Spread unsafe for {action}", matrix_data)
                     return
                 
                 if not ExecutionGuard.is_profit_safe(self.symbol, lot, self.safety_stop_usd):
-                    DecisionJournal.log(self.symbol, "Scalper", "SKIP", f"Profit potential unsafe for {action}", matrix_data, account_id=self.account_id)
+                    DecisionJournal.log(self.symbol, "Scalper", "SKIP", f"Profit potential unsafe for {action}", matrix_data)
                     return
 
                 tick = mt5.symbol_info_tick(self.symbol)
@@ -275,7 +268,7 @@ class SmartScalper:
                 if res:
                     self.last_ticket = res.order
                     self.last_trade_context = {"type": action, "rsi": rsi_14, "ema_200": ema_200, "price": price}
-                    DecisionJournal.log(self.symbol, "Scalper", "ENTRY", f"{reason} | Matrix Aligned", matrix_data, account_id=self.account_id)
+                    DecisionJournal.log(self.symbol, "Scalper", "ENTRY", f"{reason} | Matrix Aligned", matrix_data)
                     self.telegram.send_trade_open(self.symbol, action, price, lot, f"Sovereign v4.5 {reason}")
                     setup_found = True
                 else:

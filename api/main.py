@@ -21,63 +21,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 🛤️ Include Modular Routes
-app.include_router(router)
+# 🛤️ Include Modular Routes with /api prefix for dashboard compatibility
+app.include_router(router, prefix="/api")
 
-@app.get("/safety-stop")
-def get_safety_stop():
-    import json
-    try:
-        with open("config.json", "r") as f:
-            config = json.load(f)
-            return {"stop": config.get("safety_stop_usd", 1.0)}
-    except:
-        return {"stop": 1.0}
-
-@app.post("/safety-stop")
-def set_safety_stop(data: dict):
-    import json
-    new_stop = data.get("stop", 1.0)
-    try:
-        config = {}
-        try:
-            with open("config.json", "r") as f:
-                config = json.load(f)
-        except: pass
-        
-        config["safety_stop_usd"] = float(new_stop)
-        with open("config.json", "w") as f:
-            f.write(json.dumps(config, indent=4))
-        return {"message": f"Safety stop set to ${new_stop}", "stop": new_stop}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/market-intelligence")
-def get_market_intelligence():
-    """Returns deep sentiment data from Investing.com & AI analysis."""
-    import json
-    try:
-        with open("logs/market_intel.json", "r", encoding='utf-8') as f:
-            return json.load(f)
-    except Exception as e:
-        return {"technical_summary": "Neutral", "sentiment_score": 50, "ai_note": "Awaiting fresh data..."}
-
-@app.get("/news")
-def get_market_news():
-    """Fetches high-impact economic news from DailyFX RSS feed."""
-    import feedparser
-    try:
-        feed = feedparser.parse("https://www.dailyfx.com/feeds/market-alert")
-        news_items = []
-        for entry in feed.entries[:8]: # Last 8 news
-            news_items.append({
-                "title": entry.title,
-                "link": entry.link,
-                "published": entry.published if hasattr(entry, 'published') else "Just now"
-            })
-        return {"news": news_items}
-    except Exception as e:
-        return {"news": [{"title": "News Feed currently unavailable.", "link": "#", "published": ""}]}
+# Routes moved to central router for consistent /api prefixing
 
 # 🚂 Global thread reference for clean shutdown
 trading_thread = None
@@ -105,4 +52,6 @@ def shutdown_event():
         
     logger.info("✅ [SHUTDOWN] All systems parked. Safe to terminate.")
 
-# Run with: uvicorn api.main:app --reload
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

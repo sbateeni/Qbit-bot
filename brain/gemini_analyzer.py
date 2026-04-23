@@ -20,7 +20,7 @@ class GeminiAnalyzer:
         else:
             self.client = genai.Client(api_key=api_key)
             
-        self.model_name = 'gemini-2.5-flash' # Matching the Sovereign v4.5 - 2026 standard
+        self.model_tiers = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro']
         self.config_path = config_path
         self.memory_path = memory_path
         
@@ -92,6 +92,26 @@ class GeminiAnalyzer:
         except Exception as e:
             logger.error(f"Failed to update config: {e}")
 
+    def generate_content(self, prompt, model_override=None):
+        """Unified robust content generation with multi-tier fallback and retries."""
+        if not self.client: return None
+        
+        tiers = [model_override] if model_override else self.model_tiers
+        
+        for model_id in tiers:
+            for attempt in range(2):
+                try:
+                    logger.debug(f"🧠 Generating content via {model_id} (Attempt {attempt+1})...")
+                    response = self.client.models.generate_content(model=model_id, contents=prompt)
+                    if response: return response
+                except Exception as e:
+                    logger.warning(f"⚠️ {model_id} failed: {e}")
+                    if "503" in str(e) or "429" in str(e):
+                        __import__('time').sleep(3)
+                        continue
+                    break # Critical error, skip to next model
+        return None
+
     def log_evolution(self, trade_data, analysis, before_cfg, after_cfg):
         """Logs the detailed evolution of the strategy to a file."""
         evo_path = "logs/strategy_evolution.json"
@@ -158,10 +178,12 @@ class GeminiAnalyzer:
         """
 
         
-        if not self.client: return None
+        response = self.generate_content(prompt)
+        if not response: 
+            logger.error("❌ All Gemini model tiers failed for trade failure analysis.")
+            return None
         
         try:
-            response = self.client.models.generate_content(model=self.model_name, contents=prompt)
             output = response.text.strip()
             
             json_match = re.search(r'\{.*\}', output, re.DOTALL)
@@ -181,7 +203,8 @@ class GeminiAnalyzer:
             GeminiAnalyzer.activity_feed.insert(0, {
                 "time": __import__('datetime').datetime.now().strftime("%d/%m %H:%M"),
                 "reason": parsed.get("analysis", "No reason provided"),
-                "changes": parsed.get("adjustments", {})
+                "changes": parsed.get("adjustments", {}),
+                "model": response.model_id if hasattr(response, 'model_id') else "unknown"
             })
             GeminiAnalyzer.activity_feed = GeminiAnalyzer.activity_feed[:20]
             self.save_memory()

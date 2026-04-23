@@ -2,3 +2,12 @@ fastapi
 uvicorn
 python-dotenv
 pydantic
+MetaTrader5
+pandas
+pandas-ta
+requests
+feedparser
+yfinance
+tradingview-ta
+supabase
+python-multipart

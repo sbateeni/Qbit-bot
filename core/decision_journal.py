@@ -16,13 +16,11 @@ class DecisionJournal:
     """
     
     @staticmethod
-    def log(symbol, strategy, decision, reason, data=None, account_id=None):
+    def log(symbol, strategy, decision, reason, data=None):
         """
-        Records the decision to Sovereign Cloud (Supabase) and local fallback.
-        account_id: The UUID of the trading account.
+        Records the decision to local audit trail.
         decision:   'ENTRY', 'SKIP', 'BLOCK', 'EXIT'
         """
-        acc_id = account_id or DEFAULT_ACC_ID
         entry = {
             "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "symbol": symbol,
@@ -33,7 +31,7 @@ class DecisionJournal:
         }
         
         try:
-            # 1. Local Fallback (for safety)
+            # 1. Local Journal
             os.makedirs("logs", exist_ok=True)
             journal = []
             if os.path.exists(JOURNAL_FILE):
@@ -48,9 +46,6 @@ class DecisionJournal:
             with open(JOURNAL_FILE, "w") as f:
                 json.dump(journal, f, indent=4)
 
-            # 2. Cloud Log (Supabase)
-            db_client.log_trade_decision(acc_id, symbol, strategy, decision, reason, data)
-                
-            logger.info(f"📔 [JOURNAL] {acc_id[:8]}.. {strategy} {decision} {symbol}: {reason}")
+            logger.info(f"📔 [JOURNAL] {strategy} {decision} {symbol}: {reason}")
         except Exception as e:
             logger.error(f"❌ Failed to write to journal: {e}")

@@ -46,20 +46,20 @@ const SystemAudit = () => {
     
     const report = `
 === 🏛️ QBIT-BOT SOVEREIGN v4.5 EXECUTIVE BRIEFING ===
-Time: ${snapshot.timestamp}
-Account: ${h.server} | Balance: $${h.balance?.toLocaleString()} | Equity: $${h.equity?.toLocaleString()}
-Drawdown: $${h.drawdown?.toFixed(2)} (${((h.drawdown/h.balance)*100 || 0).toFixed(2)}%)
+Time: ${snapshot?.timestamp || 'N/A'}
+Account: ${h?.server || 'N/A'} | Balance: $${h?.balance?.toLocaleString() || 0} | Equity: $${h?.equity?.toLocaleString() || 0}
+Drawdown: $${h?.drawdown?.toFixed(2) || 0} (${(((h?.drawdown || 0)/(h?.balance || 1))*100).toFixed(2)}%)
 
 --- 📈 PERFORMANCE (LAST 30 DAYS) ---
-Net Profit: $${p.total_profit}
-Win Rate: ${p.win_rate}%
-Total Trades: ${p.total_executions}
-Breakdown: ${JSON.stringify(p.breakdown)}
+Net Profit: $${p?.total_profit || 0}
+Win Rate: ${p?.win_rate || 0}%
+Total Trades: ${p?.total_executions || 0}
+Breakdown: ${JSON.stringify(p?.breakdown || {})}
 
 --- ⚡ ENGINES & CONFIGS ---
-- SCALPER: RSI ${c.scalper?.rsi_oversold}/${c.scalper?.rsi_overbought} | SL: ${c.scalper?.sl_points}
-- SWING: Confidence > ${c.swing?.min_confidence}%
-- SNIPER: Armed: ${c.sniper?.is_armed}
+- SCALPER: RSI ${c?.scalper?.rsi_oversold}/${c?.scalper?.rsi_overbought} | SL: ${c?.scalper?.sl_points}
+- SWING: Confidence > ${c?.swing?.min_confidence}%
+- SNIPER: Armed: ${c?.sniper?.is_armed}
 
 --- 🧠 AI AUDIT INSIGHTS ---
 - Health Score: ${auditNotes?.overall_health_score}/100
@@ -67,10 +67,10 @@ Breakdown: ${JSON.stringify(p.breakdown)}
 - Suggested Tweaks: ${auditNotes?.suggested_tweaks?.join(', ')}
 
 --- 📔 RECENT JOURNAL ---
-${snapshot.recent_history?.map(t => `[${t.time}] ${t.symbol}: $${t.profit}`).join('\n')}
+${snapshot?.recent_history?.map(t => `[${t.time}] ${t.symbol}: $${t.profit}`).join('\n') || 'No recent history.'}
 
 --- 📡 ACTIVE EXPOSURE ---
-${snapshot.active_positions?.map(p => `${p.symbol} ${p.type} (${p.volume}): $${p.profit}`).join('\n') || 'No active trades.'}
+${snapshot?.active_positions?.map(p => `${p.symbol} ${p.type} (${p.volume}): $${p.profit}`).join('\n') || 'No active trades.'}
 ===================================================
     `.trim();
 

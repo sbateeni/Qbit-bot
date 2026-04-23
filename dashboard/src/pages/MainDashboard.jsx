@@ -4,12 +4,11 @@ import TerminalConsole from '../components/TerminalConsole';
 import HistoryPanel from '../components/HistoryPanel';
 import MarketWatch from '../components/MarketWatch';
 import { useLanguage } from '../components/LanguageContext';
-import BrokerControlPanel from '../components/BrokerControlPanel';
 import { API_URL } from '../utils/apiBase';
 
 const MainDashboard = ({ 
   account, positions, closePosition, terminalLogs, history, period, setPeriod, copyHistory, market,
-  prices, prevPrices, aiFeed, activeAccount, session
+  prices, prevPrices, aiFeed
 }) => {
   const [globalBalance, setGlobalBalance] = useState(100.0);
   const [saveStatus, setSaveStatus] = useState("apply_capital");
@@ -25,19 +24,17 @@ const MainDashboard = ({
       .catch(() => {});
     
     const fetchData = () => {
-        const accId = activeAccount?.id || "default";
-        
-        fetch(`${API_URL}/regimes?account_id=${accId}`)
+        fetch(`${API_URL}/regimes`)
             .then(r => r.ok ? r.json() : null)
             .then(data => data && setRegimes(data))
             .catch(() => {});
         
-        fetch(`${API_URL}/audit/notes?account_id=${accId}`)
+        fetch(`${API_URL}/audit/notes`)
             .then(r => r.ok ? r.json() : null)
             .then(data => data && setAuditNotes(data))
             .catch(() => {});
 
-        fetch(`${API_URL}/trading/journal?account_id=${accId}`)
+        fetch(`${API_URL}/trading/journal`)
             .then(r => r.ok ? r.json() : null)
             .then(data => data && setJournal(data))
             .catch(() => {});
@@ -368,7 +365,6 @@ const MainDashboard = ({
       </div>
 
       {/* 📊 High-Performance Grid Layout */}
-      <BrokerControlPanel session={session} activeAccount={activeAccount} />
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
         
         {/* Left Pillar: Execution & Audit (8 Cols) */}
