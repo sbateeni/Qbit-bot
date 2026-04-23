@@ -1,8 +1,5 @@
 import React, { useEffect, useState } from 'react';
-
-const API_URL =
-  import.meta.env.VITE_API_URL ||
-  "/api";
+import { API_URL } from '../utils/apiBase';
 
 const BROWSER_DB_NAME = "qbitBrowserStore";
 const BROWSER_DB_VERSION = 1;

@@ -1,10 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ExposureTable from '../components/ExposureTable';
 import { useLanguage } from '../components/LanguageContext';
-
-const API_URL =
-  import.meta.env.VITE_API_URL ||
-  "/api";
+import { API_URL } from '../utils/apiBase';
 
 const SwingDashboard = ({ intel, positions, closePosition, account, history, market, loading }) => {
   const swingPositions = positions.filter(p => p.magic === 777777);

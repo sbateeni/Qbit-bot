@@ -9,12 +9,9 @@ import AnalyticsDashboard from './pages/AnalyticsDashboard';
 import SystemAudit from './pages/SystemAudit';
 import { useLanguage } from './components/LanguageContext';
 import LoginPage from './pages/LoginPage';
+import { API_URL } from './utils/apiBase';
 
 const authEnabled = false;
-
-const API_URL =
-  import.meta.env.VITE_API_URL ||
-  "/api";
 
 function App() {
   const [user, setUser] = useState(null);

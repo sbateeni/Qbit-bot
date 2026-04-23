@@ -2,10 +2,7 @@ import React, { useState, useEffect } from 'react';
 import IntelligencePanel from '../components/IntelligencePanel';
 import EvolutionLab from '../components/EvolutionLab';
 import { useLanguage } from '../components/LanguageContext';
-
-const API_URL =
-  import.meta.env.VITE_API_URL ||
-  "/api";
+import { API_URL } from '../utils/apiBase';
 
 const ScalperDashboard = ({ 
   insight, aiFeed, prices, prevPrices, news, evolution

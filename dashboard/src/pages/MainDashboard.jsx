@@ -5,10 +5,7 @@ import HistoryPanel from '../components/HistoryPanel';
 import MarketWatch from '../components/MarketWatch';
 import { useLanguage } from '../components/LanguageContext';
 import BrokerControlPanel from '../components/BrokerControlPanel';
-
-const API_URL =
-  import.meta.env.VITE_API_URL ||
-  "/api";
+import { API_URL } from '../utils/apiBase';
 
 const MainDashboard = ({ 
   account, positions, closePosition, terminalLogs, history, period, setPeriod, copyHistory, market,
