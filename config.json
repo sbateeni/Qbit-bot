@@ -1,0 +1,17 @@
+{
+  "rsi_oversold": 30,
+  "rsi_overbought": 70,
+  "sl_points": 150,
+  "tp_points": 250,
+  "virtual_balance": 100,
+  "target_profit_usd": 2.0,
+  "risk": {
+    "max_account_positions": 10,
+    "max_same_usd_direction": 4,
+    "max_equity_drawdown_percent": 4.0,
+    "hourly_panic_loss_usd": 80.0,
+    "hourly_panic_bot_deals_only": true,
+    "hourly_panic_include_commission": true,
+    "hourly_panic_magics": [123456]
+  }
+}

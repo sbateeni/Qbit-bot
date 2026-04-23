@@ -1,0 +1,13 @@
+{
+  "scripts": {
+    "dev:api": "python -X utf8 -m uvicorn api.index:app --host 127.0.0.1 --port 8000",
+    "dev:web": "npm --prefix dashboard run dev -- --host 127.0.0.1 --port 5173",
+    "dev:local": "concurrently -n API,WEB -c cyan,magenta \"npm run dev:api\" \"npm run dev:web\""
+  },
+  "dependencies": {
+    "lucide-react": "^1.7.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

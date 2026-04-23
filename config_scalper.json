@@ -1,0 +1,19 @@
+{
+    "rsi_oversold": 25,
+    "rsi_overbought": 75,
+    "sl_points": 150,
+    "tp_points": 200,
+    "target_profit_usd": 15.0,
+    "safety_stop_usd": 5.0,
+    "mode": "standard",
+    "block_mean_reversion_high_adx": true,
+    "adx_mr_block_level": 25.0,
+    "exec_max_spread_atr_ratio": 1.25,
+    "atr_filter_enabled": true,
+    "atr_percentile_window": 120,
+    "atr_min_percentile": 15.0,
+    "atr_max_percentile": 85.0,
+    "max_spread_pips": 20,
+    "last_ai_update": "2026-04-20 22:13:26",
+    "ai_adjustment_count": 1
+}

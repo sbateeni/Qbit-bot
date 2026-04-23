@@ -1,0 +1,56 @@
+services:
+  - type: web
+    name: qbit-api
+    runtime: python
+    rootDir: .
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn api.index:app --host 0.0.0.0 --port $PORT
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.3
+      - key: REDIS_URL
+        sync: false
+      - key: FXCM_LOGIN
+        sync: false
+      - key: FXCM_PASSWORD
+        sync: false
+      - key: FXCM_HOST_URL
+        sync: false
+
+  - type: worker
+    name: qbit-worker
+    runtime: python
+    rootDir: .
+    buildCommand: pip install -r requirements.txt
+    startCommand: python worker/strategy_worker.py
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.3
+      - key: REDIS_URL
+        sync: false
+      - key: FXCM_LOGIN
+        sync: false
+      - key: FXCM_PASSWORD
+        sync: false
+      - key: FXCM_HOST_URL
+        sync: false
+      - key: WORKER_ACCOUNT_ID
+        sync: false
+      - key: WORKER_STRATEGY
+        value: smart_scalper
+      - key: WORKER_INTERVAL_SEC
+        value: 30
+
+  - type: web
+    name: qbit-dashboard
+    runtime: static
+    rootDir: dashboard
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    autoDeploy: true
+    pullRequestPreviewsEnabled: true
+    envVars:
+      - key: VITE_API_URL
+        sync: false

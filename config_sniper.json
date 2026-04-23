@@ -1,0 +1,17 @@
+{
+    "enabled": true,
+    "volume": 0.05,
+    "use_limit_orders": true,
+    "limit_cushion_points": 20,
+    "stop_loss_points": 300,
+    "take_profit_points": 900,
+    "minimum_tf_confluence": 2,
+    "rsi_oversold": 35,
+    "rsi_overbought": 65,
+    "execution_mode": "pivot_bounce",
+    "active_timeframes": [
+        "15M",
+        "1H",
+        "D"
+    ]
+}
