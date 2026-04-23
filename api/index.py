@@ -78,6 +78,18 @@ def health():
     }
 
 
+@app.get("/")
+def root():
+    return {
+        "service": "Qbit-Bot API",
+        "status": "online",
+        "docs": "/docs",
+        "health": "/api/health",
+        "ops_health": "/api/v2/ops/health",
+        "message": "API is running. Use /docs for interactive endpoints.",
+    }
+
+
 @app.get("/api/audit/notes")
 def get_audit_notes(account_id: str = None):
     """AI Audit Insights from local DB."""
